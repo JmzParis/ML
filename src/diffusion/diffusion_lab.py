@@ -16,7 +16,7 @@ def _():
     from torch.utils.data import Dataset, DataLoader
     import torchvision.transforms as T
     import torch.nn.functional as TF # Need F for padding
-    #from torchvision.utils import make_grid
+    from torchvision.utils import make_grid
 
     import numpy as np
 
@@ -29,7 +29,7 @@ def _():
     from io import BytesIO
 
     import matplotlib.pyplot as plt
-
+    import traceback
     # Ensure reproducibility (optional)
     # torch.manual_seed(42)
     # np.random.seed(42)
@@ -43,6 +43,7 @@ def _():
         ImageFilter,
         T,
         TF,
+        make_grid,
         math,
         mo,
         nn,
@@ -53,6 +54,7 @@ def _():
         random,
         time,
         torch,
+        traceback,
     )
 
 
@@ -75,7 +77,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 1. Configuration""")
+    mo.md(r"""## 🎛️ 1. Configuration""")
     return
 
 
@@ -116,11 +118,12 @@ def _(mo):
     # --- UI Controls ---
     start_training_button = mo.ui.run_button(label="Start/Continue Training")
 
+    generate_learning_picture_button = mo.ui.run_button(label="Generate Some Learning Pictures")
     generate_samples_button = mo.ui.run_button(label="Generate Samples")
 
-    sampler_choice = mo.ui.dropdown( ["DDPM", "DDIM"], value="DDIM", label="Sampler Type")
+    sampler_choice = mo.ui.dropdown( ["DDPM", "DDIM"], value="DDPM", label="Sampler Type")
 
-    num_samples_to_generate = mo.ui.slider(1, 16, value=4, label="Number of Samples to Generate")
+    num_samples_to_generate = mo.ui.slider(1, 16, value=1, label="Number of Samples to Generate")
 
     ddim_eta = mo.ui.slider(0.0, 1.0, step=0.1, value=0.0, label="DDIM Eta (0=Deterministic)")
 
@@ -156,19 +159,21 @@ def _(mo):
             ddim_eta,
             num_samples_to_generate,
             mo.md("---"),
-            mo.hstack([start_training_button, generate_samples_button], justify="start")
+            mo.hstack([generate_learning_picture_button, start_training_button, generate_samples_button], justify="start")
         ])
     return (
         batch_size_slider,
         checkpoint_dir,
         color_mode,
         ddim_eta,
+        generate_learning_picture_button,
         generate_samples_button,
         image_size_slider,
         learning_rate_slider,
         load_checkpoint_flag_checkbox,
         n_epochs_slider,
         n_step_slider,
+        num_samples_to_generate,
         num_solids_range_slider,
         sampler_choice,
         save_freq_epochs_slider,
@@ -215,7 +220,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 2. Synthetic Data Generation""")
+    mo.md(r"""## 🧱2. Synthetic Data Generation""")
     return
 
 
@@ -417,8 +422,8 @@ def _(BytesIO, Image, ImageDraw, ImageFilter, math, mo, random):
 
 
 @app.cell
-def _(generate_samples_button):
-    generate_samples_button
+def _(generate_learning_picture_button):
+    generate_learning_picture_button
     return
 
 
@@ -426,13 +431,13 @@ def _(generate_samples_button):
 def _(
     color_mode,
     display_samples,
-    generate_samples_button,
+    generate_learning_picture_button,
     image_size_slider,
     mo,
     num_solids_range_slider,
 ):
     # if the button hasn't been clicked, don't run.
-    mo.stop(not generate_samples_button.value, mo.md("Press 'Start/Continue Training' button to run 🔥"))
+    mo.stop(not generate_learning_picture_button.value, mo.md("Press 'Generate Some Learning Pictures' button to run 🔥"))
 
     # Display sample images based on current config
     display_samples(
@@ -447,7 +452,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("""## 3. Dataset and DataLoader""")
+    mo.md("""## 🎞️ 3. Dataset and DataLoader""")
     return
 
 
@@ -583,12 +588,12 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 4. Diffusion Model (U-Net)""")
+    mo.md(r"""## 🧠 4. Diffusion Model (U-Net) """)
     return
 
 
 @app.cell(hide_code=True)
-def _(TF, math, mo, nn, torch):
+def _(TF, math, mo, nn, torch, traceback):
     # --- Time Embedding ---
     class SinusoidalPosEmb(nn.Module):
         # (Keep this class exactly as it was)
@@ -836,7 +841,6 @@ def _(TF, math, mo, nn, torch):
         model_status = f"Error instantiating or testing U-Net: {e}"
         print(f"\nERROR: {model_status}")
         # Print traceback for detailed error location
-        import traceback
         traceback.print_exc()
 
 
@@ -854,12 +858,12 @@ def _(TF, math, mo, nn, torch):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 5. Diffusion Process Utilities""")
+    mo.md(r"""## 🍵5. Diffusion Process Utilities""")
     return
 
 
 @app.cell(hide_code=True)
-def _(mo, np, timesteps_slider, torch):
+def _(mo, timesteps_slider, torch):
     # --- Diffusion Scheduler ---
 
     def linear_beta_schedule(ts):
@@ -904,149 +908,23 @@ def _(mo, np, timesteps_slider, torch):
         )
 
 
-    # --- Reverse Process (p - sampling) ---
-    # DDPM Sampling Step: p(x_{t-1} | x_t)
-    # Uses model prediction epsilon_theta(x_t, t)
-    @torch.no_grad()
-    def p_sample_ddpm(model, x_t, t, t_index):
-        betas_t = extract(betas, t, x_t.shape)
-        sqrt_one_minus_alphas_cumprod_t = extract(
-            torch.sqrt(1.0 - alphas_cumprod), t, x_t.shape
-        )
-        sqrt_recip_alphas_t = extract(torch.sqrt(1.0 / alphas), t, x_t.shape)
-
-        # Equation 11 from DDPM paper:
-        # x_{t-1} = 1/sqrt(alpha_t) * (x_t - beta_t / sqrt(1 - alpha_cumprod_t) * epsilon_theta(x_t, t)) + sigma_t * z
-        # where z is noise N(0, I), and sigma_t^2 = beta_t or (1-alpha_cumprod_{t-1})/(1-alpha_cumprod_t) * beta_t
-
-        # Use model to predict noise
-        predicted_noise = model(x_t, t)
-
-        # Calculate mean of p(x_{t-1} | x_t)
-        model_mean = sqrt_recip_alphas_t * (
-            x_t - betas_t * predicted_noise / sqrt_one_minus_alphas_cumprod_t
-        )
-
-        if t_index == 0:
-            return model_mean  # No noise added at the last step
-        else:
-            # Calculate variance (sigma_t^2 * I) - use fixed variance beta_t
-            posterior_variance_t = extract(
-                betas, t, x_t.shape
-            )  # sigma_t^2 = beta_t
-            noise = torch.randn_like(x_t)
-
-            # Algorithm 2 line 4:
-            return model_mean + torch.sqrt(posterior_variance_t) * noise
-
-
-    # DDPM Sampling Loop
-    @torch.no_grad()
-    def p_sample_loop_ddpm(model, shape, device):
-        b = shape[0]  # Batch size
-        # Start from pure noise x_T ~ N(0, I)
-        img = torch.randn(shape, device=device)
-        imgs = []
-        for i in reversed(range(0, timesteps_slider_value)):
-            t_tensor = torch.full((b,), i, device=device, dtype=torch.long)
-            img = p_sample_ddpm(model, img, t_tensor, i)
-            # Optionally store intermediate steps
-            # if i % 50 == 0: imgs.append(img.cpu())
-        imgs.append(img.cpu())  # Store final result
-        return imgs
-
-
-    # DDIM Sampling Step
-    @torch.no_grad()
-    def p_sample_ddim(model, x_t, t, t_prev, eta=0.0):
-        # Predict noise and x_0
-        predicted_noise = model(x_t, t)
-        alpha_cumprod_t = extract(alphas_cumprod, t, x_t.shape)
-        alpha_cumprod_t_prev = extract(alphas_cumprod, t_prev, x_t.shape)
-
-        # Equation (12) from DDIM paper: predicted x_0
-        pred_x0 = (
-            x_t - torch.sqrt(1.0 - alpha_cumprod_t) * predicted_noise
-        ) / torch.sqrt(alpha_cumprod_t)
-
-        pred_x0 = torch.clamp(pred_x0, -1.0, 1.0)  # Clip predicted x0
-
-        # Equation (12) cont.: direction pointing to x_t
-        pred_dir_xt = (
-            torch.sqrt(1.0 - alpha_cumprod_t_prev - (eta**2)) * predicted_noise
-        )
-
-        # Equation (12) cont.: random noise term
-        sigma_t = eta * torch.sqrt(
-            (1.0 - alpha_cumprod_t_prev)
-            / (1.0 - alpha_cumprod_t)
-            * (1.0 - alpha_cumprod_t / alpha_cumprod_t_prev)
-        )
-
-        noise = torch.randn_like(x_t) if torch.any(t > 0) else 0  # No noise at t=0
-
-        # Combine: x_{t-1} = sqrt(alpha_cumprod_{t-1}) * pred_x0 + pred_dir_xt + sigma_t * noise
-        x_prev = (
-            torch.sqrt(alpha_cumprod_t_prev) * pred_x0
-            + pred_dir_xt
-            + sigma_t * noise
-        )
-        return x_prev
-
-
-    # DDIM Sampling Loop
-    @torch.no_grad()
-    def p_sample_loop_ddim(model, shape, device, num_inference_steps=50, eta=0.0):
-        b = shape[0]
-        img = torch.randn(shape, device=device)
-        imgs = []
-        # Define DDIM timesteps_slider (subset of T)
-        step_ratio = timesteps_slider_value // num_inference_steps
-        ddim_timesteps_slider = (np.arange(0, num_inference_steps) * step_ratio).round()
-        ddim_timesteps_slider = ddim_timesteps_slider.astype(int) + 1  # Start from 1
-        ddim_timesteps_slider = np.flip(ddim_timesteps_slider)  # Reverse: T -> 1
-
-        # Ensure unique timesteps_slider and add step 0 if needed.
-        # This needs refinement based on DDIM paper's sequence (c.f. Eq 12): t_i = (i * T / S)
-        # Let's use linspace for better sequence generation T -> 0
-        ddim_timesteps_slider_seq = np.linspace(
-            0, timesteps_slider_value - 1, num_inference_steps
-        ).astype(int)
-
-        ddim_timesteps_slider_seq = np.flip(ddim_timesteps_slider_seq)  # T-1, ..., 0
-
-        times = torch.from_numpy(ddim_timesteps_slider_seq.copy()).long().to(device)
-
-        times_prev = (
-            torch.from_numpy(np.concatenate([[0], ddim_timesteps_slider_seq[:-1]]).copy())
-            .long()
-            .to(device)
-        )  # t_{i-1}
-
-        for i, (t, t_prev) in enumerate(zip(times, times_prev)):
-            time_tensor = torch.full((b,), t, device=device, dtype=torch.long)
-
-            time_prev_tensor = torch.full(
-                (b,), t_prev, device=device, dtype=torch.long
-            )  # Needed if extract uses tensor directly
-
-            img = p_sample_ddim(model, img, time_tensor, time_prev_tensor, eta=eta)
-
-            # Optionally store intermediate steps
-            # if i % (num_inference_steps // 5) == 0: imgs.append(img.cpu())
-        imgs.append(img.cpu())  # Store final result
-        return imgs
-
     mo.md(f"""
     Diffusion constants calculated for timesteps={timesteps_slider_value}.  
     Beta schedule: Linear from {betas.min():.1e} to {betas.max():.2f}.
     """)
-    return q_sample, timesteps_slider_value
+    return (
+        alphas,
+        alphas_cumprod,
+        betas,
+        extract,
+        q_sample,
+        timesteps_slider_value,
+    )
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 6. Training Setup""")
+    mo.md(r"""## 💾 6. Training Setup """)
     return
 
 
@@ -1213,7 +1091,12 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 7. Training Loop""")
+    mo.md(r"""## 🤯 7. Training Loop """)
+    return
+
+
+@app.cell
+def _():
     return
 
 
@@ -1323,7 +1206,349 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 8. end""")
+    mo.md(r"""## 🪛 8. Methods to sample ddpm and ddim""")
+    return
+
+
+@app.cell(hide_code=True)
+def _(alphas, alphas_cumprod, betas, extract, np, torch):
+    # --- Diffusion Scheduler ---
+    # (Keep existing scheduler code: linear_beta_schedule, T, betas, alphas, etc.)
+    # T = timesteps.value # T is already defined in the original cell based on the slider
+    # ... keep betas, alphas, alphas_cumprod, alphas_cumprod_prev ...
+    # ... keep extract function ...
+    # ... keep q_sample function ...
+
+    # --- Reverse Process (p - sampling) ---
+
+    # DDPM Sampling Step: p(x_{t-1} | x_t)
+    # Uses model prediction epsilon_theta(x_t, t)
+    @torch.no_grad()
+    def p_sample_ddpm(model, x_t, t, t_index, T_val, alphas_t, sqrt_one_minus_alphas_cumprod_t, sqrt_recip_alphas_t, betas_t):
+    	# Use model to predict noise
+    	predicted_noise = model(x_t, t)
+
+    	# Calculate mean of p(x_{t-1} | x_t) (Equation 11 from DDPM paper)
+    	model_mean = sqrt_recip_alphas_t * (
+    		x_t - betas_t * predicted_noise / sqrt_one_minus_alphas_cumprod_t
+    	)
+
+    	if t_index == 0:
+    		return model_mean # No noise added at the last step
+    	else:
+    		# Calculate variance (sigma_t^2 * I) - use fixed variance beta_t
+    		posterior_variance_t = betas_t # sigma_t^2 = beta_t
+    		noise = torch.randn_like(x_t)
+    		# Algorithm 2 line 4:
+    		return model_mean + torch.sqrt(posterior_variance_t) * noise
+
+    # DDPM Sampling Loop (MODIFIED)
+    @torch.no_grad()
+    def p_sample_loop_ddpm(model, shape, device, T_val, num_display_steps=10):
+    	b = shape[0]
+    	img = torch.randn(shape, device=device)
+    	imgs = [img.cpu()] # Store initial noise
+
+    	# Calculate interval, ensuring we store at least the start and end
+    	# Store approximately num_display_steps images including start and end
+    	if num_display_steps <= 1:
+    		store_interval = T_val # Only store end if steps <= 1
+    	else:
+    		store_interval = max(1, T_val // (num_display_steps - 1))
+
+    	steps_to_process = list(reversed(range(0, T_val)))
+
+    	for i, t_index in enumerate(steps_to_process):
+    		t = torch.full((b,), t_index, device=device, dtype=torch.long)
+
+    		# Pre-extract constants for this timestep t
+    		betas_t = extract(betas, t, img.shape)
+    		sqrt_one_minus_alphas_cumprod_t = extract(torch.sqrt(1. - alphas_cumprod), t, img.shape)
+    		sqrt_recip_alphas_t = extract(torch.sqrt(1.0 / alphas), t, img.shape)
+
+    		img = p_sample_ddpm(model, img, t, t_index, T_val, alphas_t=extract(alphas, t, img.shape), # Pass necessary constants
+    							sqrt_one_minus_alphas_cumprod_t=sqrt_one_minus_alphas_cumprod_t,
+    							sqrt_recip_alphas_t=sqrt_recip_alphas_t,
+    							betas_t=betas_t)
+
+    		# Store image at intervals OR if it's the last step (t_index == 0)
+    		# Check i relative to total steps for interval, or check t_index == 0 for final
+    		current_step_number = i + 1 # Step number in the loop (1 to T)
+    		if (current_step_number % store_interval == 0 and current_step_number > 0) or t_index == 0:
+    			 # Avoid duplicates if last step aligns with interval
+    			if not imgs or not torch.equal(imgs[-1], img.cpu()):
+    				 imgs.append(img.cpu())
+
+    	# Ensure the very last computed image (t=0) is stored if somehow missed
+    	if not torch.equal(imgs[-1], img.cpu()):
+    		imgs.append(img.cpu())
+
+    	return imgs # Return the list
+
+
+    # DDIM Sampling Step (MODIFIED to accept constants)
+    @torch.no_grad()
+    def p_sample_ddim(model, x_t, t, t_prev, eta, alphas_cumprod_t, alphas_cumprod_t_prev):
+        # Predict noise and x_0
+        predicted_noise = model(x_t, t)
+
+        # Equation (12) from DDIM paper: predicted x_0
+        sqrt_one_minus_alpha_cumprod_t = torch.sqrt(1. - alphas_cumprod_t)
+        pred_x0 = (x_t - sqrt_one_minus_alpha_cumprod_t * predicted_noise) / torch.sqrt(alphas_cumprod_t)
+        pred_x0 = torch.clamp(pred_x0, -1., 1.) # Clip predicted x0
+
+        # Equation (12) cont.: variance calculation (sigma_t)
+        sigma_t = eta * torch.sqrt((1. - alphas_cumprod_t_prev) / (1. - alphas_cumprod_t) * (1. - alphas_cumprod_t / alphas_cumprod_t_prev))
+
+        # Equation (12) cont.: direction pointing to x_t term
+        pred_dir_xt = torch.sqrt(1. - alphas_cumprod_t_prev - sigma_t**2) * predicted_noise # Corrected dir term using sigma_t
+
+        # Combine: x_{t-1} = sqrt(alpha_cumprod_{t-1}) * pred_x0 + pred_dir_xt + sigma_t * noise
+        noise = torch.randn_like(x_t) if torch.any(t > 0) else 0 # No noise at t=0
+        x_prev = torch.sqrt(alphas_cumprod_t_prev) * pred_x0 + pred_dir_xt + sigma_t * noise
+
+        return x_prev
+
+    # DDIM Sampling Loop (MODIFIED)
+    @torch.no_grad()
+    def p_sample_loop_ddim(model, shape, device, T_val, num_inference_steps=50, eta=0.0, num_display_steps=10):
+        b = shape[0]
+        img = torch.randn(shape, device=device)
+        imgs = [img.cpu()] # Store initial noise
+
+        # Define DDIM timesteps (subset of T)
+        ddim_timesteps_seq = np.linspace(0, T_val - 1, num_inference_steps).astype(int)
+        ddim_timesteps_seq = np.flip(ddim_timesteps_seq) # Reverse: T-1, ..., 0
+
+        times = torch.from_numpy(ddim_timesteps_seq.copy()).long().to(device)
+        times_prev = torch.from_numpy(np.concatenate([[0], ddim_timesteps_seq[:-1]]).copy()).long().to(device) # t_{i-1}
+
+        # Calculate interval for storing display steps among inference steps
+        if num_display_steps <= 1:
+            store_interval = num_inference_steps
+        else:
+            store_interval = max(1, num_inference_steps // (num_display_steps - 1))
+
+        for i, (t_val, t_prev_val) in enumerate(zip(times, times_prev)):
+            t = torch.full((b,), t_val, device=device, dtype=torch.long)
+            t_prev = torch.full((b,), t_prev_val, device=device, dtype=torch.long)
+
+            # Extract constants needed for p_sample_ddim
+            alphas_cumprod_t = extract(alphas_cumprod, t, img.shape)
+            alphas_cumprod_t_prev = extract(alphas_cumprod, t_prev, img.shape) # Use t_prev for prev
+
+            img = p_sample_ddim(model, img, t, t_prev, eta=eta,
+                                alphas_cumprod_t=alphas_cumprod_t,
+                                alphas_cumprod_t_prev=alphas_cumprod_t_prev)
+
+            # Store image at intervals OR if it's the last step
+            current_step_number = i + 1
+            if (current_step_number % store_interval == 0 and current_step_number > 0) or i == (num_inference_steps - 1):
+                if not imgs or not torch.equal(imgs[-1], img.cpu()):
+                    imgs.append(img.cpu())
+
+        # Ensure the very last computed image is stored
+        if not torch.equal(imgs[-1], img.cpu()):
+             imgs.append(img.cpu())
+
+        return imgs
+    return p_sample_loop_ddim, p_sample_loop_ddpm
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+        ## ⚙️ 9. Inference time
+        generate some denoise chain: 🪥🪥🪥🖼️
+        """
+    )
+    return
+
+
+@app.cell
+def _(generate_samples_button):
+    generate_samples_button
+    return
+
+
+@app.cell
+def _(
+    T,
+    channels,
+    ddim_eta,
+    device,
+    generate_samples_button,
+    image_size_slider,
+    make_grid,
+    math,
+    mo,
+    model,
+    num_samples_to_generate,
+    p_sample_loop_ddim,
+    p_sample_loop_ddpm,
+    sampler_choice,
+    timesteps_slider,
+    traceback,
+):
+
+    # === Helper Function: Tensor to PIL Grid ===
+    # Inverse transform: [-1, 1] -> [0, 1] -> [0, 255] -> PIL Image
+    def tensor_batch_to_pil_grid(img_tensor_batch, num_samples):
+        # Ensure tensor is on CPU before grid/PIL conversion
+        img_tensor_batch = img_tensor_batch.cpu()
+        img_tensor_batch = (img_tensor_batch + 1) / 2 # [-1, 1] -> [0, 1]
+        img_tensor_batch = img_tensor_batch.clamp(0, 1) # Ensure range
+
+        # Create a grid
+        grid = make_grid(img_tensor_batch, nrow=int(math.sqrt(num_samples)), padding=2)
+        pil_img = T.ToPILImage()(grid)
+        return pil_img
+
+    # === Marimo State for Visualization ===
+    # Stores the list of image batches from the denoising process
+    get_denoising_steps, set_denoising_steps = mo.state([])
+    # Stores the index of the step currently being viewed
+    get_current_step_index, set_current_step_index = mo.state(0)
+    # Status message area
+    get_sampling_status, set_sampling_status = mo.state(mo.md("Click 'Generate Samples' to visualize the denoising process."))
+
+    # === Generation Logic (Triggered by Button) ===
+    # if the button hasn't been clicked, don't run.
+    mo.stop(not generate_samples_button.value, mo.md("Press 'Generate Samples' button to run 🔥"))
+
+    set_sampling_status(mo.md(f"Generating {num_samples_to_generate.value} samples..."))
+    model.eval() # Set model to evaluation mode
+
+    num_samples = num_samples_to_generate.value
+    image_size = image_size_slider.value
+    sample_shape = (num_samples, channels, image_size, image_size)
+    num_display_steps = 12 # How many steps (including noise and final) to show
+
+    # Get the current diffusion timestep count T from the UI slider
+    current_T = timesteps_slider.value # Use the value from the config slider
+
+    generated_batches = []
+    try:
+        # --- Select Sampler and Generate ---
+        if sampler_choice.value == "DDPM":
+            set_sampling_status(mo.md(f"Generating {num_samples} samples using DDPM (T={current_T}). Storing ~{num_display_steps} steps..."))
+            generated_batches = p_sample_loop_ddpm(model, sample_shape, device, T_val=current_T, num_display_steps=num_display_steps)
+        elif sampler_choice.value == "DDIM":
+            num_inference_steps = 50 # Keep DDIM faster, maybe make this configurable?
+            eta = ddim_eta.value
+            set_sampling_status(mo.md(f"Generating {num_samples} samples using DDIM (Steps={num_inference_steps}, Eta={eta}). Storing ~{num_display_steps} steps..."))
+            generated_batches = p_sample_loop_ddim(model, sample_shape, device, T_val=current_T, num_inference_steps=num_inference_steps, eta=eta, num_display_steps=num_display_steps)
+        else:
+             set_sampling_status(mo.md("Invalid sampler selected.").callout("danger"))
+             generated_batches = [] # Clear any previous results
+
+        # --- Update State After Generation ---
+        if generated_batches:
+            set_denoising_steps(generated_batches)
+            set_current_step_index(0) # Reset view to the start (noise)
+            num_actual_steps = len(generated_batches)
+            set_sampling_status(mo.md(f"Generated {num_samples} samples. Showing step {get_current_step_index() + 1}/{num_actual_steps} (Use slider)."))
+        else:
+             # Handle case where generation failed or returned empty
+             set_denoising_steps([])
+
+             if sampler_choice.value in ["DDPM", "DDIM"]: # Only show error if valid sampler failed
+                 set_sampling_status(mo.md("Sample generation failed or returned no results.").callout("warn"))
+
+    except Exception as e:
+        err_msg = f"Error during sampling: {e}\n{traceback.format_exc()}"
+        set_sampling_status(mo.md(err_msg).callout("danger"))
+        print(err_msg)
+        set_denoising_steps([])
+    return (
+        get_denoising_steps,
+        get_sampling_status,
+        num_actual_steps,
+        set_sampling_status,
+        tensor_batch_to_pil_grid,
+    )
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""## 📽️ 10. Display time """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo, num_actual_steps):
+    step_slider = mo.ui.slider(
+                start=0,
+                stop=num_actual_steps - 1,
+                value=0,
+                step=1,
+                label=f"Denoising Step (1 to {num_actual_steps})"
+            )
+    step_slider
+    return (step_slider,)
+
+
+@app.cell
+def _(
+    BytesIO,
+    get_denoising_steps,
+    get_sampling_status,
+    mo,
+    num_samples_to_generate,
+    set_sampling_status,
+    step_slider,
+    tensor_batch_to_pil_grid,
+    traceback,
+):
+
+    # === Display Logic (Reacts to State Changes) ===
+    try:
+        # Get the current slider value (if the slider exists)
+        viewing_index = step_slider.value
+        print(f"viewing_index: {viewing_index}")
+        # Prepare the image display area
+        image_display_area = mo.md("No steps generated yet.")
+        denoising_steps = get_denoising_steps()
+        if denoising_steps:
+            num_actual_steps2 = len(denoising_steps)
+            print(f"num_actual_steps2: {num_actual_steps2}")
+            if 0 <= viewing_index < num_actual_steps2:
+                # Get the tensor batch for the selected step
+                current_batch = denoising_steps[viewing_index]
+
+                # Convert to PIL grid
+                pil_grid = tensor_batch_to_pil_grid(current_batch, num_samples_to_generate.value)
+
+                # Convert PIL image to bytes for display
+                buf = BytesIO()
+                pil_grid.save(buf, format='PNG')
+                buf.seek(0)
+
+                # Determine step label (e.g., "Initial Noise", "Step X", "Final Image")
+                step_label = ""
+                if viewing_index == 0:
+                    step_label = "(Initial Noise)"
+                elif viewing_index == num_actual_steps2 - 1:
+                    step_label = "(Final Image)"
+
+                image_display_area = mo.vstack([
+                    mo.md(f"**Step {viewing_index + 1} / {num_actual_steps2}** {step_label}"),
+                    mo.image(buf.getvalue())
+                ])
+            else:
+                # Handle invalid index (shouldn't happen with slider constraints)
+                 image_display_area = mo.md(f"Invalid step index selected: {viewing_index}").callout("warn")
+
+    except Exception as e:
+        err_msg2 = f"Error during sampling: {e}\n{traceback.format_exc()}"
+        set_sampling_status(mo.md(err_msg2).callout("danger"))
+        print(err_msg2)
+    # Combine status, slider (if available), and image display
+    mo.vstack([
+        get_sampling_status(),
+        image_display_area
+    ])
     return
 
 
