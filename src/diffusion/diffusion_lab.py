@@ -77,7 +77,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🎛️ 1. Configuration""")
+    mo.md(r"""## 🎛️ Configuration""")
     return
 
 
@@ -220,7 +220,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🧱2. Synthetic Data Generation""")
+    mo.md(r"""## 🧱 Synthetic Data Generation""")
     return
 
 
@@ -452,7 +452,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("""## 🎞️ 3. Dataset and DataLoader""")
+    mo.md("""## 🎞️ Dataset and DataLoader""")
     return
 
 
@@ -588,7 +588,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🧠 4. Diffusion Model (U-Net) """)
+    mo.md(r"""## 🧠 Diffusion Model (U-Net)""")
     return
 
 
@@ -858,7 +858,7 @@ def _(TF, math, mo, nn, torch, traceback):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🍵5. Diffusion Process Utilities""")
+    mo.md(r"""## 🍵 Diffusion Process Utilities""")
     return
 
 
@@ -924,7 +924,7 @@ def _(mo, timesteps_slider, torch):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 💾 6. Training Setup """)
+    mo.md(r"""## 💾 Training Setup""")
     return
 
 
@@ -1026,7 +1026,7 @@ def _(
             # optimizer.param_groups[0]['lr'] = learning_rate_slider.value
 
             print(f"Checkpoint loaded. Resuming from epoch {prev_epoch}.")
-            checkpoint_status = mo.md(f"Loaded checkpoint from epoch {prev_epoch} (Loss: {checkpoint["loss"]:.6f}).")
+            checkpoint_status = mo.md(f"Loaded checkpoint from epoch {prev_epoch} (Loss: {checkpoint["loss"]:.4f}).")
 
         except Exception as e:
             checkpoint_status = mo.md(f"Error loading checkpoint: {e}").callout(kind="danger")
@@ -1091,7 +1091,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🤯 7. Training Loop """)
+    mo.md(r"""## 🤯 Training Loop""")
     return
 
 
@@ -1206,7 +1206,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🪛 8. Methods to sample ddpm and ddim""")
+    mo.md(r"""## 🪛 Methods to sample DDPM and DDIM""")
     return
 
 
@@ -1359,7 +1359,7 @@ def _(alphas, alphas_cumprod, betas, extract, np, torch):
 def _(mo):
     mo.md(
         r"""
-        ## ⚙️ 9. Inference time
+        ## ⚙️ Inference time
         generate some denoise chain: 🪥🪥🪥🖼️
         """
     )
@@ -1372,7 +1372,7 @@ def _(generate_samples_button):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     T,
     channels,
@@ -1427,7 +1427,6 @@ def _(
 
     # Get the current diffusion timestep count T from the UI slider
     current_T = timesteps_slider.value # Use the value from the config slider
-
     generated_batches = []
     try:
         # --- Select Sampler and Generate ---
@@ -1464,7 +1463,7 @@ def _(
     return (
         get_denoising_steps,
         get_sampling_status,
-        num_actual_steps,
+        num_display_steps,
         set_sampling_status,
         tensor_batch_to_pil_grid,
     )
@@ -1472,18 +1471,18 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 📽️ 10. Display time """)
+    mo.md(r"""## 📽️ Display time""")
     return
 
 
 @app.cell(hide_code=True)
-def _(mo, num_actual_steps):
+def _(mo, num_display_steps):
     step_slider = mo.ui.slider(
                 start=0,
-                stop=num_actual_steps - 1,
+                stop=num_display_steps - 1,
                 value=0,
                 step=1,
-                label=f"Denoising Step (1 to {num_actual_steps})"
+                label=f"Denoising Step (1 to {num_display_steps})"
             )
     step_slider
     return (step_slider,)
@@ -1501,11 +1500,11 @@ def _(
     tensor_batch_to_pil_grid,
     traceback,
 ):
-
     # === Display Logic (Reacts to State Changes) ===
     try:
         # Get the current slider value (if the slider exists)
         viewing_index = step_slider.value
+        image_display_area = mo.md(f"Nothing yet {viewing_index}").callout("info")
         print(f"viewing_index: {viewing_index}")
         # Prepare the image display area
         image_display_area = mo.md("No steps generated yet.")
@@ -1538,7 +1537,7 @@ def _(
                 ])
             else:
                 # Handle invalid index (shouldn't happen with slider constraints)
-                 image_display_area = mo.md(f"Invalid step index selected: {viewing_index}").callout("warn")
+                image_display_area = mo.md(f"Invalid step index selected: {viewing_index}").callout("warn")
 
     except Exception as e:
         err_msg2 = f"Error during sampling: {e}\n{traceback.format_exc()}"

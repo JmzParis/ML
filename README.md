@@ -6,5 +6,6 @@
 ## [UNet bike recognition](src/unet/README.md)
 ![](src/unet/Screenshot.png)
 
-## ✨ [Diffusion Model](src/diffusion/README.md)
+## [Diffusion Model](src/diffusion/README.md)✨ 
 ⚠️ Still in active development 🚧
+![](src/diffusion/Denoising.png)
