@@ -1,6 +1,10 @@
+
+
 import marimo
 
+__generated_with = "0.13.2"
 app = marimo.App()
+
 
 @app.cell(hide_code=True)
 def _():
@@ -558,7 +562,7 @@ def _(
 
     # Example: Get one batch to check shapes
     try:
-        temp_loader = get_dataloader(4)  # Use a small fixed batch size for testing
+        temp_loader = get_dataloader()
         sample_batch = next(iter(temp_loader))
         batch_shape = sample_batch.shape
         data_loader_status = f"DataLoader ready. Sample batch shape: {batch_shape}"
