@@ -308,7 +308,7 @@ def show_two_pictures(
     txt1: str,
     img2: Img,
     txt2: str,
-) -> None:
+) -> tuple[plt.Figure, plt.Axes]:
     """Displays two images side by side."""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
     ax1.imshow(img1, cmap="gray")
@@ -318,7 +318,7 @@ def show_two_pictures(
     ax1.set_title(txt1)
     ax2.set_title(txt2)
     plt.tight_layout()
-    plt.show()
+    return plt.gcf(), plt.gca()
 
 
 def generate_bike_sample(
@@ -373,7 +373,7 @@ def draw_bbox(image_pil, bbox, color="red", thickness=2):
     return image_pil
 
 
-def main(img_size: int) -> None:
+def main(img_size: int) -> plt.Figure:
     # Let's test the generated image
     width, height = img_size, img_size
     test_img_np, test_mask_np = generate_bike_sample(width, height)
@@ -382,15 +382,19 @@ def main(img_size: int) -> None:
         img_size, img_size, add_noise_prob=0.5, noise_amount=0.04
     )
     # Display the images
-    show_two_pictures(
-        test_img_np, "Generated Input Image", test_mask_np, "Generated Mask"
-    )
+    
 
     print(f"Input shape: {test_img_np.shape}, Mask shape: {test_mask_np.shape}")
     print(f"Input dtype: {test_img_np.dtype}, Mask dtype: {test_mask_np.dtype}")
     print(f"Input min/max: {np.min(test_img_np)}/{np.max(test_img_np)}")
     print(f"Mask min/max: {np.min(test_mask_np)}/{np.max(test_mask_np)}")
 
+    fig, axes = show_two_pictures(
+        test_img_np, "Generated Input Image", test_mask_np, "Generated Mask"
+    )
+    return fig
 
 if __name__ == "__main__":
-    main(128)  # Test with a 128x128 image
+    fig = main(128)  # Test with a 128x128 image
+    plt.show()
+    plt.close(fig)  # Close the figure after showing it

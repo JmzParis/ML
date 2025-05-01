@@ -10,5 +10,4 @@ tqdm
 transformers
 altair
 marimo
-marimo[all]
 scipy

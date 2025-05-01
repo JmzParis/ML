@@ -1079,7 +1079,7 @@ wheels = [
 
 [[package]]
 name = "marimo"
-version = "0.13.2"
+version = "0.13.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -1094,15 +1094,14 @@ dependencies = [
     { name = "pygments" },
     { name = "pymdown-extensions" },
     { name = "pyyaml" },
-    { name = "ruff" },
     { name = "starlette" },
     { name = "tomlkit" },
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/29/01/f26fda933290eaeab4a1a3f856221882c311b1ca3f755f6b4df5a4a1bd11/marimo-0.13.2.tar.gz", hash = "sha256:eaee97908b8f90ae53c1f0ddb34f75c9a29c97f683600402372287ba072e44e5", size = 10774675 }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/2d/ce50a77da68dd9193d8bf133c502811050b7331f6496b3d923bac684c8eb/marimo-0.13.3.tar.gz", hash = "sha256:a2cc6a5b74091f64bd50eec3a506ee8f334bd053360d0ed2b0355b692b9f6b88", size = 10816609 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/dd/d0127ed66be00796727a929158d8d15cec276364b414f49710dfef4ddbfb/marimo-0.13.2-py3-none-any.whl", hash = "sha256:173a0f4af6661407a43c3af40811c0e16ff41fd9ccae1b15cbfe52b5f3583c50", size = 11139962 },
+    { url = "https://files.pythonhosted.org/packages/0d/ba/230e204d325e6e4d778d7c551cbeb2bf8c80eabd405c961b914df4a1f340/marimo-0.13.3-py3-none-any.whl", hash = "sha256:b9933a9dacd56e894b9d44fb0e017824f47e3c45ae5d44463ec887b87c1042e6", size = 11186048 },
 ]
 
 [[package]]
@@ -1265,7 +1264,7 @@ requires-dist = [
     { name = "altair", specifier = ">=5.5.0" },
     { name = "gradio", specifier = ">=5.25.2" },
     { name = "jupyter", specifier = ">=1.1.1" },
-    { name = "marimo", specifier = ">=0.13.2" },
+    { name = "marimo", specifier = ">=0.13.3" },
     { name = "matplotlib", specifier = ">=3.10.1" },
     { name = "numpy", specifier = ">=2.2.5" },
     { name = "pandas", specifier = ">=2.2.3" },

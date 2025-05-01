@@ -2,8 +2,8 @@
 
 import marimo
 
-__generated_with = "0.13.3"
-app = marimo.App(width="full")
+__generated_with = "0.13.2"
+app = marimo.App()
 
 
 @app.cell(hide_code=True)
@@ -77,7 +77,7 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🎛️ Configuration""")
+    mo.md(r"""## 1. Configuration""")
     return
 
 
@@ -110,25 +110,24 @@ def _(mo):
     # --- Model & Checkpointing ---
 
     # model_choice = mo.ui.dropdown(["UNet_Simple", "UNet_Standard"], value="UNet_Simple", label="Model Architecture") # Placeholder if adding more models
-    file_model_prefix_field = mo.ui.text("diffusion_model", label="Checkpoint file prefix")
+
+    checkpoint_dir = mo.ui.text("models\\diffusion", label="Checkpoint Directory")
     save_freq_epochs_slider = mo.ui.slider(1, 10, value=1, label="Save Checkpoint Every (Epochs)")
     load_checkpoint_flag_checkbox = mo.ui.checkbox(value=True, label="Load Latest Checkpoint if Available")
 
     # --- UI Controls ---
     start_training_button = mo.ui.run_button(label="Start/Continue Training")
 
-    generate_learning_picture_button = mo.ui.run_button(label="Generate Some Learning Pictures")
     generate_samples_button = mo.ui.run_button(label="Generate Samples")
 
-    sampler_choice = mo.ui.dropdown( ["DDPM", "DDIM"], value="DDPM", label="Sampler Type")
+    sampler_choice = mo.ui.dropdown( ["DDPM", "DDIM"], value="DDIM", label="Sampler Type")
 
-    num_samples_to_generate = mo.ui.slider(1, 16, value=1, label="Number of Samples to Generate")
+    num_samples_to_generate = mo.ui.slider(1, 16, value=4, label="Number of Samples to Generate")
 
     ddim_eta = mo.ui.slider(0.0, 1.0, step=0.1, value=0.0, label="DDIM Eta (0=Deterministic)")
 
     # --- Display Configured Values ---
-
-    ui_conf = mo.vstack([
+    mo.vstack([
             mo.md("### UI Configuration"),
             mo.hstack([
                 mo.vstack([
@@ -148,7 +147,7 @@ def _(mo):
                     mo.md("  "),
                     mo.md("#### Model & Checkpointing"),
                     # model_choice,
-                    file_model_prefix_field,
+                    checkpoint_dir,
                     save_freq_epochs_slider,
                     load_checkpoint_flag_checkbox,
                     mo.md("  "),
@@ -159,14 +158,13 @@ def _(mo):
             ddim_eta,
             num_samples_to_generate,
             mo.md("---"),
-            mo.hstack([generate_learning_picture_button, start_training_button, generate_samples_button], justify="start")
+            mo.hstack([start_training_button, generate_samples_button], justify="start")
         ])
     return (
         batch_size_slider,
+        checkpoint_dir,
         color_mode,
         ddim_eta,
-        file_model_prefix_field,
-        generate_learning_picture_button,
         generate_samples_button,
         image_size_slider,
         learning_rate_slider,
@@ -179,16 +177,15 @@ def _(mo):
         save_freq_epochs_slider,
         start_training_button,
         timesteps_slider,
-        ui_conf,
     )
 
 
 @app.cell(hide_code=True)
 def _(
     batch_size_slider,
+    checkpoint_dir,
     color_mode,
     ddim_eta,
-    file_model_prefix_field,
     image_size_slider,
     learning_rate_slider,
     load_checkpoint_flag_checkbox,
@@ -201,7 +198,7 @@ def _(
     timesteps_slider,
 ):
     mo.md(f"""
-    ### Conf summary
+    ### Resume
     **Current Configuration:**  
     - Image Size: {image_size_slider.value}x{image_size_slider.value}  
     - Batch Size: {batch_size_slider.value}  
@@ -210,7 +207,7 @@ def _(
     - Timesteps (T): {timesteps_slider.value}  
     - Color Mode: {color_mode.value} ({("Color" if color_mode.value == "RGB" else "Grayscale")})  
     - Solids per Image: {num_solids_range_slider.value[0]} to {num_solids_range_slider.value[1]}  
-    - Checkpoint prefix: `{file_model_prefix_field.value}`  
+    - Checkpoint Dir: `{checkpoint_dir.value}`  
     - Save Freq: {save_freq_epochs_slider.value} epochs  
     - Load Checkpoint: {load_checkpoint_flag_checkbox.value}  
     - Sampler: {sampler_choice.value.upper()} (Eta: {ddim_eta.value if sampler_choice.value == "ddim" else "N/A"})  
@@ -221,12 +218,12 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🧱 Synthetic Data Generation""")
+    mo.md(r"""## 2. Synthetic Data Generation""")
     return
 
 
 @app.cell(hide_code=True)
-def build_pic_cell(BytesIO, Image, ImageDraw, ImageFilter, math, mo, random):
+def _(BytesIO, Image, ImageDraw, ImageFilter, math, mo, random):
     # --- Platonic Solid Definitions (Simplified 2D Projections) ---
 
     # Coordinates are roughly centered around (0,0) with scale ~0.8
@@ -422,9 +419,9 @@ def build_pic_cell(BytesIO, Image, ImageDraw, ImageFilter, math, mo, random):
     return display_samples, generate_scene_image
 
 
-@app.cell(hide_code=True)
-def _(generate_learning_picture_button):
-    generate_learning_picture_button
+@app.cell
+def _(generate_samples_button):
+    generate_samples_button
     return
 
 
@@ -432,11 +429,14 @@ def _(generate_learning_picture_button):
 def _(
     color_mode,
     display_samples,
-    generate_learning_picture_button,
+    generate_samples_button,
     image_size_slider,
+    mo,
     num_solids_range_slider,
 ):
-    generate_learning_picture_button.value # re-run this cell each time the button is clicked
+    # if the button hasn't been clicked, don't run.
+    mo.stop(not generate_samples_button.value, mo.md("Press 'Generate Samples' button to run 🔥"))
+
     # Display sample images based on current config
     display_samples(
         num=4,
@@ -450,7 +450,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("""## 🎞️ Dataset and DataLoader""")
+    mo.md("""## 3. Dataset and DataLoader""")
     return
 
 
@@ -586,7 +586,7 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🧠 Diffusion Model (U-Net)""")
+    mo.md(r"""## 4. Diffusion Model (U-Net)""")
     return
 
 
@@ -856,7 +856,7 @@ def _(TF, math, mo, nn, torch, traceback):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🍵 Diffusion Process Utilities""")
+    mo.md(r"""## 5. Diffusion Process Utilities""")
     return
 
 
@@ -922,30 +922,27 @@ def _(mo, timesteps_slider, torch):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 💾 Training Setup""")
+    mo.md(r"""## 6. Training Setup""")
     return
 
 
-@app.cell
-def checkpoint_cell(
-    file_model_prefix_field,
+@app.cell(hide_code=True)
+def _(
+    UNet,
+    channels,
+    checkpoint_dir,
+    learning_rate_slider,
     load_checkpoint_flag_checkbox,
     mo,
+    n_epochs_slider,
+    nn,
+    optim,
     os,
     plt,
+    start_training_button,
     torch,
 ):
-    _load_checkpoint_flag = load_checkpoint_flag_checkbox.value
-    _file_prefix = file_model_prefix_field.value
-    _chkpt_dir = os.path.join("models","diffusion")
-
-    # Use mo.state to manage the training execution and outputs persistently
-    # Initialize state variables if they don't exist
-    get_epoch_log, set_epoch_log = mo.state([])  # Store tuples of (epoch, avg_loss)
-    get_start_epoch, set_start_epoch = mo.state(1)  # Store start_epoch
-
-    def display_epoch_log():
-        epoch_log = get_epoch_log()
+    def display_epoch_log(epoch_log):
         if not epoch_log:
             return None
         epochs, losses = zip(*epoch_log)
@@ -960,11 +957,85 @@ def checkpoint_cell(
         #plt.show()
         return plt.gcf()
 
-    os.makedirs(_chkpt_dir, exist_ok=True)
-    print(f"Checkpoint file folder: {_chkpt_dir}")
+    # Use mo.state to manage the training execution and outputs persistently
+    # Initialize state variables if they don't exist
+    get_epoch_log, set_epoch_log = mo.state([])  # Store tuples of (epoch, avg_loss)
+    get_start_epoch, set_start_epoch = mo.state(1)  # Store start_epoch
 
-    def save_checkpoint(model, optimizer, epoch, avg_epoch_loss):
-        checkpoint_path = os.path.join(_chkpt_dir, f"{_file_prefix}_epoch_{epoch}.pth")
+    # --- Device Setup ---
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device_info = mo.md(f"**Using Device:** `{device}`")
+
+    # --- Instantiate Model ---
+    # Ensure channels match current config
+    _in_channels = channels  # From dataset cell
+    _out_channels = _in_channels
+
+    model = UNet(
+        in_channels=_in_channels,
+        out_channels=_out_channels,
+        time_emb_dim=128,  # Can be adjusted
+        base_dim=32,  # Smaller for CPU: 32 or even 16
+        dim_mults=(1, 2),  # Fewer levels: (1, 2) or (1, 2, 4)
+    ).to(device)
+
+    model_param_count = sum(p.numel() for p in model.parameters())
+    model_instance_info = mo.md(f"Model instance created with {model_param_count:,} parameters.")
+
+
+    # --- Optimizer ---
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate_slider.value, weight_decay=1e-4)
+
+    # --- Loss Function ---
+    loss_fn = nn.MSELoss()
+
+    # --- Checkpoint Handling ---
+    chkpt_dir = checkpoint_dir.value
+    os.makedirs(chkpt_dir, exist_ok=True)
+    latest_checkpoint = None
+
+    checkpoint_status = mo.md("No checkpoint found.").callout(kind="warn")
+
+
+    # Find latest checkpoint file
+    try:
+        checkpoint_files = [f for f in os.listdir(chkpt_dir) if f.endswith(".pth")]
+
+        if checkpoint_files:
+            checkpoint_files.sort(
+                key=lambda x: int(x.split("_")[-1].split(".")[0])
+            )  # Sort by epoch number
+
+            latest_checkpoint = os.path.join(chkpt_dir, checkpoint_files[-1])
+
+    except OSError as e:
+        print(f"Could not access checkpoint directory {chkpt_dir}: {e}")
+
+    if load_checkpoint_flag_checkbox.value and latest_checkpoint:
+        try:
+            print(f"Loading checkpoint: {latest_checkpoint}")
+            checkpoint = torch.load(latest_checkpoint, map_location=device)
+            model.load_state_dict(checkpoint["model_state_dict"])
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            set_epoch_log(checkpoint["epoch_log"])
+            prev_epoch = checkpoint["epoch"]
+            set_start_epoch(prev_epoch +1)  # Start from next epoch
+            # Ensure LR matches current setting if desired, or use saved LR
+            # optimizer.param_groups[0]['lr'] = learning_rate_slider.value
+
+            print(f"Checkpoint loaded. Resuming from epoch {prev_epoch}.")
+            checkpoint_status = mo.md(f"Loaded checkpoint from epoch {prev_epoch} (Loss: {checkpoint["loss"]:.6f}).")
+
+        except Exception as e:
+            checkpoint_status = mo.md(f"Error loading checkpoint: {e}").callout(kind="danger")
+    elif load_checkpoint_flag_checkbox.value and not latest_checkpoint:
+        checkpoint_status = mo.md("Load requested, but no checkpoint found.").callout(kind="warn")
+    else:
+        checkpoint_status = mo.md("Starting training from scratch.").callout(kind="info")
+
+
+    def save_model(epoch, avg_epoch_loss):
+        checkpoint_path = os.path.join(chkpt_dir, f"diffusion_model_epoch_{epoch}.pth")
         try:
             torch.save(
                 {
@@ -972,8 +1043,9 @@ def checkpoint_cell(
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "loss": avg_epoch_loss,
-                    # Save epoch log for plotting
-                    "epoch_log": get_epoch_log(),                 
+                    # Save epoch log for plotting continuity
+                    "epoch_log": get_epoch_log(),
+                    # You might want to save other things like config, learning rate etc.
                 },
                 checkpoint_path,
             )
@@ -983,118 +1055,46 @@ def checkpoint_cell(
         except Exception as e:
             print(f"Error saving checkpoint: {e}")
 
-    def read_checkpoint(checkpoint, model, optimizer):
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        set_epoch_log(checkpoint["epoch_log"])
-        prev_epoch = checkpoint["epoch"]
-        set_start_epoch(prev_epoch +1)  # Start from next epoch
-        # Ensure LR matches current setting if desired, or use saved LR
-        # optimizer.param_groups[0]['lr'] = learning_rate_slider.value
-        msg = f"👍 Checkpoint loaded. Resuming from epoch {prev_epoch} (Loss: {checkpoint["loss"]:.4f})."
-        print(msg)
-        return mo.md(msg)
-
-    def load_from_checkpoints(model, optimizer, device):
-        file = None
-        status = mo.md("")
-
-        # Find latest checkpoint file
-        try:
-            files = [f for f in os.listdir(_chkpt_dir) if f.startswith(_file_prefix) and f.endswith(".pth")]
-            print(f"Found {len(files)} files while looking for {_file_prefix}.*.pth in folder: {_chkpt_dir}")
-            if files:
-                files.sort(
-                    key=lambda x: int(x.split("_")[-1].split(".")[0])
-                )  # Sort by epoch number
-
-                file = os.path.join(_chkpt_dir, files[-1])
-
-        except OSError as e:
-            print(f"Could not access checkpoint directory {_chkpt_dir}: {e}")
-
-        # Load the latest checkpoint file
-        if _load_checkpoint_flag and file:
-            try:
-                print(f"Loading checkpoint: {file}")
-                checkpoint = torch.load(file, map_location=device)
-                status = read_checkpoint(checkpoint, model, optimizer)
-
-            except Exception as e:            
-                status = mo.md(f"Error loading checkpoint: {e}").callout(kind="danger")
-        elif _load_checkpoint_flag and not file:
-            status = mo.md("⚠️ Load requested, but no checkpoint found.")
-        else:
-            status = mo.md("Training will start from scratch.")
-        return status
+    # Display setup status
+    setup_status = mo.vstack(
+        [
+            device_info,
+            model_instance_info,
+            mo.md(f"Optimizer: AdamW, LR: {learning_rate_slider.value}"),
+            mo.md(f"Loss Function: MSELoss"),
+            checkpoint_status
+        ]
+    )
+    mo.vstack(
+        [
+            setup_status,
+            (mo.vstack([display_epoch_log(get_epoch_log()),f"Last Loss: {get_epoch_log()[-1][1]:.4f}"]) if get_epoch_log() else "No epoch data"),
+            (mo.hstack([start_training_button,
+            f"From epoch {get_start_epoch()} to {n_epochs_slider.value}"
+            ]) if get_start_epoch() <= n_epochs_slider.value else f"Model is trainned after {get_start_epoch() -1 } epochs. (change epoch number slider to continue: {n_epochs_slider.value}).")
+        ]
+    )
     return (
-        display_epoch_log,
+        device,
         get_epoch_log,
         get_start_epoch,
-        load_from_checkpoints,
-        save_checkpoint,
+        loss_fn,
+        model,
+        optimizer,
+        save_model,
         set_epoch_log,
         set_start_epoch,
     )
 
 
 @app.cell(hide_code=True)
-def setup_cell(
-    UNet,
-    channels,
-    display_epoch_log,
-    learning_rate_slider,
-    load_from_checkpoints,
-    mo,
-    nn,
-    optim,
-    torch,
-):
-    # --- Device Setup ---
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # --- Instantiate Model ---
-    model = UNet(
-        in_channels=channels,
-        out_channels=channels,
-        time_emb_dim=128,  # Can be adjusted
-        base_dim=32,  # Smaller for CPU: 32 or even 16
-        dim_mults=(1, 2),  # Fewer levels: (1, 2) or (1, 2, 4)
-    ).to(device)
-
-    _model_param_count = sum(p.numel() for p in model.parameters())
-
-    # --- Optimizer ---
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate_slider.value, weight_decay=1e-4)
-
-    # --- Loss Function ---
-    loss_fn = nn.MSELoss()
-
-    _checkpoint_status = load_from_checkpoints(model, optimizer, device)
-
-    # Display setup status
-    mo.vstack(
-        [
-            _checkpoint_status,
-            display_epoch_log(),
-            mo.md(f"Using Device: `{device}`"),
-            mo.md(f"Model instance created with {_model_param_count:,} parameters."),
-            mo.md(f"Optimizer: AdamW, LR: {learning_rate_slider.value}"),
-            mo.md(f"Loss Function: MSELoss")
-        ]
-    )
-    return device, loss_fn, model, optimizer
-
-
-@app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🤯 Training Loop""")
+    mo.md(r"""## 7. Training Loop""")
     return
 
 
 @app.cell
-def _(ui_conf):
-    ui_conf
+def _():
     return
 
 
@@ -1110,8 +1110,8 @@ def _(
     n_epochs_slider,
     optimizer,
     q_sample,
-    save_checkpoint,
     save_freq_epochs_slider,
+    save_model,
     set_epoch_log,
     set_start_epoch,
     start_training_button,
@@ -1122,84 +1122,93 @@ def _(
     # if the button hasn't been clicked, don't run.
     mo.stop(not start_training_button.value, mo.md(("Press 'Start/Continue Training' button to run 🔥" if get_start_epoch() <= n_epochs_slider.value else "Model is trained 🟢")))
 
-    def train():
-        def _progress(bar, epoch, step, steps_per_epoch, current_loss, epoch_loss):
-            bar.update(
-                title=f"Epoch {epoch}/{n_epochs_slider.value} Step {step + 1}/{steps_per_epoch}",
-                subtitle=f"Step Batch Loss: {current_loss:.4f}, Epoch Avg Loss: {epoch_loss / (step + 1):.4f}",
-            )
 
-        # --- Prepare DataLoader ---
-        # Must be created here to use the current batch_size_slider value
-        dataloader = get_dataloader()
-        steps_per_epoch = len(dataloader)
+    def progress(bar, epoch, step, steps_per_epoch, current_loss, epoch_loss):
+        bar.update(
+            title=f"Epoch {epoch}/{n_epochs_slider.value} Step {step + 1}/{steps_per_epoch}",
+            subtitle=f"Step Batch Loss: {current_loss:.4f}, Epoch Avg Loss: {epoch_loss / (step + 1):.4f}",
+        )
 
-        # --- Training Loop ---
-        model.train()
-        for epoch in range(get_start_epoch(), n_epochs_slider.value + 1):
-            epoch_start_time = time.time()
-            epoch_loss = 0.0
-            with mo.status.progress_bar(title="Steps", total=steps_per_epoch) as bar:
-                for step, batch in enumerate(dataloader):
-                    optimizer.zero_grad()
-                    batch = batch.to(device)
-                    b_size = batch.shape[0]
 
-                    # 1. Sample random timesteps_slider t for each image in the batch
-                    t = torch.randint(0, timesteps_slider_value, (b_size,), device=device).long()
+    # --- Prepare DataLoader ---
+    # Must be created here to use the current batch_size_slider value
+    dataloader = get_dataloader()
+    steps_per_epoch = len(dataloader)
 
-                    # 2. Sample noise eps ~ N(0, I)
-                    noise = torch.randn_like(batch)
+    # --- Training Loop ---
+    model.train()
+    total_start_time = time.time()
+    for epoch in range(get_start_epoch(), n_epochs_slider.value + 1):
+        epoch_start_time = time.time()
+        epoch_loss = 0.0
+        with mo.status.progress_bar(title="Steps", total=steps_per_epoch) as bar:
+            for step, batch in enumerate(dataloader):
+                optimizer.zero_grad()
+                batch = batch.to(device)
+                b_size = batch.shape[0]
 
-                    # 3. Calculate x_t = q_sample(x_0, t, eps) (noisy image)
-                    x_noisy = q_sample(x_start=batch, t=t, noise=noise)
+                # 1. Sample random timesteps_slider t for each image in the batch
+                t = torch.randint(
+                    0, timesteps_slider_value, (b_size,), device=device
+                ).long()
 
-                    # 4. Predict noise using the model: eps_theta = model(x_t, t)
-                    predicted_noise = model(x_noisy, t)
+                # 2. Sample noise eps ~ N(0, I)
+                noise = torch.randn_like(batch)
 
-                    # 5. Calculate loss: MSE(eps, eps_theta)
-                    loss = loss_fn(noise, predicted_noise)
+                # 3. Calculate x_t = q_sample(x_0, t, eps) (noisy image)
+                x_noisy = q_sample(x_start=batch, t=t, noise=noise)
 
-                    # 6. Backpropagate and update optimizer
-                    loss.backward()
-                    optimizer.step()
-                    epoch_loss += loss.item()
+                # 4. Predict noise using the model: eps_theta = model(x_t, t)
+                predicted_noise = model(x_noisy, t)
 
-                    # Update progress
-                    current_loss = loss.item()
-                    _progress(bar, epoch, step, steps_per_epoch, current_loss, epoch_loss)
+                # 5. Calculate loss: MSE(eps, eps_theta)
+                loss = loss_fn(noise, predicted_noise)
 
-            # --- End of Epoch ---
-            avg_epoch_loss = epoch_loss / steps_per_epoch
-            epoch_duration = time.time() - epoch_start_time
+                # 6. Backpropagate and update optimizer
+                loss.backward()
+                optimizer.step()
+                epoch_loss += loss.item()
 
-            # Log epoch loss
-            set_epoch_log(get_epoch_log() + [(epoch, avg_epoch_loss)])
+                # Update progress
+                current_loss = loss.item()
+                progress(
+                    bar, epoch, step, steps_per_epoch, current_loss, epoch_loss
+                )
 
-            # Update plot
-            print(f"Epoch {epoch}/{n_epochs_slider.value}, Avg Loss: {avg_epoch_loss:.4f},  Time: {epoch_duration:.2f}s")
-            set_start_epoch(epoch+1) # allow restart at next step if this cell is interupted
-            # --- Checkpointing ---
-            if ( epoch % save_freq_epochs_slider.value == 0 or epoch == n_epochs_slider.value):
-                save_checkpoint(model, optimizer, epoch, avg_epoch_loss)            
+        # --- End of Epoch ---
+        avg_epoch_loss = epoch_loss / steps_per_epoch
+        epoch_duration = time.time() - epoch_start_time
+
+        # Log epoch loss
+        set_epoch_log(get_epoch_log() + [(epoch, avg_epoch_loss)])
+
+        # Update plot
+        print(
+            f"Epoch {epoch}/{n_epochs_slider.value}, Avg Loss: {avg_epoch_loss:.4f},  Time: {epoch_duration:.2f}s"
+        )
+        set_start_epoch(epoch+1)  # allow restart by increasing n_epochs_slider
+        # --- Checkpointing ---
+        if (
+            (epoch +1) % save_freq_epochs_slider.value == 0
+            or epoch == n_epochs_slider.value
+        ):
+            save_model(epoch, avg_epoch_loss)
 
     # --- Training Finished ---
-    _total_start_time = time.time()
-    train()
-    _total_end_time = time.time()
-    _total_duration = _total_end_time - _total_start_time
-    _final_status = f"Training finished after {n_epochs_slider.value} epochs ({_total_duration:.2f}s)."
-    print(_final_status)
+    total_end_time = time.time()
+    total_duration = total_end_time - total_start_time
+    final_status = f"Training finished after {n_epochs_slider.value} epochs ({total_duration:.2f}s)."
+    print(final_status)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""## 🪛 Methods to sample DDPM and DDIM""")
+    mo.md(r"""## 🤕8. p_sample_ddpm p_sample_ddim""")
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(alphas, alphas_cumprod, betas, extract, np, torch):
     # --- Diffusion Scheduler ---
     # (Keep existing scheduler code: linear_beta_schedule, T, betas, alphas, etc.)
@@ -1346,12 +1355,7 @@ def _(alphas, alphas_cumprod, betas, extract, np, torch):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ## ⚙️ Inference time
-        generate some denoise chain: 🪥🪥🪥🖼️
-        """
-    )
+    mo.md(r"""## 9. Inference ✨""")
     return
 
 
@@ -1361,8 +1365,9 @@ def _(generate_samples_button):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(
+    BytesIO,
     T,
     channels,
     ddim_eta,
@@ -1380,7 +1385,6 @@ def _(
     timesteps_slider,
     traceback,
 ):
-    num_display_steps = 12 # How many steps (including noise and final) to show
 
     # === Helper Function: Tensor to PIL Grid ===
     # Inverse transform: [-1, 1] -> [0, 1] -> [0, 255] -> PIL Image
@@ -1402,137 +1406,118 @@ def _(
     get_current_step_index, set_current_step_index = mo.state(0)
     # Status message area
     get_sampling_status, set_sampling_status = mo.state(mo.md("Click 'Generate Samples' to visualize the denoising process."))
+    # Slider UI element - will be updated dynamically
+    get_step_slider, set_step_slider = mo.state(None) # Placeholder
 
     # === Generation Logic (Triggered by Button) ===
     # if the button hasn't been clicked, don't run.
     mo.stop(not generate_samples_button.value, mo.md("Press 'Generate Samples' button to run 🔥"))
 
+    set_sampling_status(mo.md(f"Generating {num_samples_to_generate.value} samples..."))
+    model.eval() # Set model to evaluation mode
 
+    num_samples = num_samples_to_generate.value
+    image_size = image_size_slider.value
+    sample_shape = (num_samples, channels, image_size, image_size)
+    num_display_steps = 12 # How many steps (including noise and final) to show
 
-    def sampling(num_samples: int, image_size: int):
-        status = mo.md(f"Generating {num_samples} samples...")
-        model.eval() # Set model to evaluation mode
+    # Get the current diffusion timestep count T from the UI slider
+    current_T = timesteps_slider.value # Use the value from the config slider
 
-        sample_shape = (num_samples, channels, image_size, image_size)
+    generated_batches = []
+    try:
+        # --- Select Sampler and Generate ---
+        if sampler_choice.value == "DDPM":
+            set_sampling_status(mo.md(f"Generating {num_samples} samples using DDPM (T={current_T}). Storing ~{num_display_steps} steps..."))
+            generated_batches = p_sample_loop_ddpm(model, sample_shape, device, T_val=current_T, num_display_steps=num_display_steps)
+        elif sampler_choice.value == "DDIM":
+            num_inference_steps = 50 # Keep DDIM faster, maybe make this configurable?
+            eta = ddim_eta.value
+            set_sampling_status(mo.md(f"Generating {num_samples} samples using DDIM (Steps={num_inference_steps}, Eta={eta}). Storing ~{num_display_steps} steps..."))
+            generated_batches = p_sample_loop_ddim(model, sample_shape, device, T_val=current_T, num_inference_steps=num_inference_steps, eta=eta, num_display_steps=num_display_steps)
+        else:
+             set_sampling_status(mo.md("Invalid sampler selected.").callout("danger"))
+             generated_batches = [] # Clear any previous results
 
-        # Get the current diffusion timestep count T from the UI slider
-        current_T = timesteps_slider.value # Use the value from the config slider
-        generated_batches = []
-        try:
-            # --- Select Sampler and Generate ---
-            if sampler_choice.value == "DDPM":
-                status = mo.md(f"Generating {num_samples} samples using DDPM (T={current_T}). Storing ~{num_display_steps} steps...")
-                generated_batches = p_sample_loop_ddpm(model, sample_shape, device, T_val=current_T, num_display_steps=num_display_steps)
-            elif sampler_choice.value == "DDIM":
-                num_inference_steps = 50 # Keep DDIM faster, maybe make this configurable?
-                eta = ddim_eta.value
-                status = mo.md(f"Generating {num_samples} samples using DDIM (Steps={num_inference_steps}, Eta={eta}). Storing ~{num_display_steps} steps...")
-                generated_batches = p_sample_loop_ddim(model, sample_shape, device, T_val=current_T, num_inference_steps=num_inference_steps, eta=eta, num_display_steps=num_display_steps)
-            else:
-                 set_sampling_status(mo.md("Invalid sampler selected.").callout("danger"))
-                 generated_batches = [] # Clear any previous results
+        # --- Update State After Generation ---
+        if generated_batches:
+            set_denoising_steps(generated_batches)
+            set_current_step_index(0) # Reset view to the start (noise)
+            num_actual_steps = len(generated_batches)
+            set_sampling_status(mo.md(f"Generated {num_samples} samples. Showing step {get_current_step_index() + 1}/{num_actual_steps} (Use slider)."))
 
-            # --- Update State After Generation ---
-            if generated_batches:
-                set_denoising_steps(generated_batches)
-                set_current_step_index(0) # Reset view to the start (noise)            
-                set_sampling_status(mo.md(f"Generated {num_samples} samples. Showing step {get_current_step_index() + 1}/{len(generated_batches)} (Use slider)."))
-            else:
-                 # Handle case where generation failed or returned empty
-                 set_denoising_steps([])
-
-                 if sampler_choice.value in ["DDPM", "DDIM"]: # Only show error if valid sampler failed
-                     set_sampling_status(mo.md("Sample generation failed or returned no results.").callout("warn"))
-
-        except Exception as e:
-            err_msg = f"Error during sampling: {e}\n{traceback.format_exc()}"
-            status = mo.md(err_msg).callout("danger")
-            print(err_msg)
-            set_denoising_steps([])
-        return status
-
-    set_sampling_status(sampling(num_samples_to_generate.value, image_size_slider.value))
-    return get_denoising_steps, num_display_steps, tensor_batch_to_pil_grid
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""## 📽️ Display time""")
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo, num_display_steps):
-    step_slider = mo.ui.slider(
+            # Create/Update the slider
+            set_step_slider(mo.ui.slider(
                 start=0,
-                stop=num_display_steps - 1,
+                stop=num_actual_steps - 1,
                 value=0,
                 step=1,
-                label=f"Denoising Step (1 to {num_display_steps})"
-            )
-    step_slider
-    return (step_slider,)
+                label=f"Denoising Step (1 to {num_actual_steps})",
+                # Pass the state setter directly for two-way binding
+                on_change=set_current_step_index
+            ))
+        else:
+             # Handle case where generation failed or returned empty
+             set_denoising_steps([])
+             set_step_slider(None)
+             if sampler_choice.value in ["ddpm", "ddim"]: # Only show error if valid sampler failed
+                 set_sampling_status(mo.md("Sample generation failed or returned no results.").callout("warn"))
+
+    except Exception as e:
+        err_msg = f"Error during sampling: {e}\n{traceback.format_exc()}"
+        set_sampling_status(mo.md(err_msg).callout("danger"))
+        print(err_msg)
+        set_denoising_steps([])
+        set_step_slider(None)
 
 
-@app.cell(hide_code=True)
-def display_cell(
-    BytesIO,
-    get_denoising_steps,
-    mo,
-    num_samples_to_generate,
-    step_slider,
-    tensor_batch_to_pil_grid,
-    traceback,
-):
     # === Display Logic (Reacts to State Changes) ===
-    def build_image(denoising_steps, viewing_index):
-        try:       
-            result = mo.md(f"Nothing yet {viewing_index}").callout("info")
-            print(f"viewing_index: {viewing_index}")
-            # Prepare the image display area
-            result = mo.md("No steps generated yet.")
-            if denoising_steps:
-                num_actual_steps = len(denoising_steps)
-                print(f"num_actual_steps: {num_actual_steps}")
-                if 0 <= viewing_index < num_actual_steps:
-                    # Get the tensor batch for the selected step
-                    current_batch = denoising_steps[viewing_index]
 
-                    # Convert to PIL grid
-                    pil_grid = tensor_batch_to_pil_grid(current_batch, num_samples_to_generate.value)
+    # Get the current slider value (if the slider exists)
+    viewing_index = get_current_step_index() if get_step_slider() else 0
 
-                    # Convert PIL image to bytes for display
-                    buf = BytesIO()
-                    pil_grid.save(buf, format='PNG')
-                    buf.seek(0)
+    # Prepare the image display area
+    image_display_area = mo.md("No steps generated yet.")
+    denoising_steps = get_denoising_steps()
+    if denoising_steps:
+        num_actual_steps = len(denoising_steps)
+        if 0 <= viewing_index < num_actual_steps:
+            # Get the tensor batch for the selected step
+            current_batch = denoising_steps[viewing_index]
 
-                    # Determine step label (e.g., "Initial Noise", "Step X", "Final Image")
-                    step_label = ""
-                    if viewing_index == 0:
-                        step_label = "(Initial Noise)"
-                    elif viewing_index == num_actual_steps - 1:
-                        step_label = "(Final Image)"
+            # Convert to PIL grid
+            pil_grid = tensor_batch_to_pil_grid(current_batch, num_samples_to_generate.value)
 
-                    result = mo.vstack([
-                        mo.md(f"**Step {viewing_index + 1} / {num_actual_steps}** {step_label}"),
-                        mo.image(buf.getvalue())
-                    ])
-                else:
-                    # Handle invalid index (shouldn't happen with slider constraints)
-                    result = mo.md(f"⚠️ Invalid step index selected: {viewing_index}")
+            # Convert PIL image to bytes for display
+            buf = BytesIO()
+            pil_grid.save(buf, format='PNG')
+            buf.seek(0)
 
-        except Exception as e:
-            err_msg = f"Error during sampling: {e}\n{traceback.format_exc()}"
-            print(err_msg)
-            result = mo.md(err_msg).callout("danger")
+            # Determine step label (e.g., "Initial Noise", "Step X", "Final Image")
+            step_label = ""
+            if viewing_index == 0:
+                step_label = "(Initial Noise)"
+            elif viewing_index == num_actual_steps - 1:
+                step_label = "(Final Image)"
 
+            image_display_area = mo.vstack([
+                mo.md(f"**Step {viewing_index + 1} / {num_actual_steps}** {step_label}"),
+                mo.image(buf.getvalue())
+            ])
+        else:
+            # Handle invalid index (shouldn't happen with slider constraints)
+             image_display_area = mo.md(f"Invalid step index selected: {viewing_index}").callout("warn")
 
-        return result
 
     # Combine status, slider (if available), and image display
     mo.vstack([
-        build_image(get_denoising_steps(), step_slider.value)
+        get_sampling_status(),
+        get_step_slider() if get_step_slider() else mo.md(""), # Display slider if it exists
+        image_display_area
     ])
+
+    # Return states if needed by other cells (optional)
+    # return denoising_steps, current_step_index, sampling_status, step_slider
     return
 
 
