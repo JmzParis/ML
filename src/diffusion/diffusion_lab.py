@@ -673,7 +673,7 @@ def _(TF, math, mo, nn, torch, traceback):
             self.downs = nn.ModuleList([])
             num_resolutions = len(dim_mults)
             current_dim = base_dim
-            print(f"--- UNet Init: Encoder ---")
+            print("--- UNet Init: Encoder ---")
             for i in range(num_resolutions):
                 dim_out = base_dim * dim_mults[i]
                 print(f"  Level {i}: {current_dim} -> {dim_out} channels")
@@ -698,7 +698,7 @@ def _(TF, math, mo, nn, torch, traceback):
             # 5. Decoder Path (Upsampling)
             self.ups = nn.ModuleList([])
             decoder_input_dim = bottleneck_dim # Start with bottleneck output dimension
-            print(f"--- UNet Init: Decoder ---")
+            print("--- UNet Init: Decoder ---")
             for i in reversed(range(num_resolutions)): # e.g., i = 1, then i = 0 for mults=(1,2)
                 # Dimension of the skip connection coming from the corresponding encoder level 'i'
                 # The skip connection is the output of the *second* ResBlock at encoder level 'i'
@@ -712,7 +712,7 @@ def _(TF, math, mo, nn, torch, traceback):
 
                 # Upsampling layer: Takes decoder_input_dim, outputs dim_target_out channels
                 # Only add ConvTranspose if not the last decoder stage (highest resolution)
-                is_first_decoder_level = (i == num_resolutions - 1) # Check if it's the bottleneck connection
+                is_first_decoder_level = (i == num_resolutions - 1) # Check if it's the bottleneck connection     <<< ⚠️ Unused variable !
                 upsample_layer = nn.ConvTranspose2d(decoder_input_dim, dim_target_out, kernel_size=4, stride=2, padding=1) # Upsamples x2
 
                 # Calculate input channels for the first ResBlock after concatenation
@@ -734,7 +734,7 @@ def _(TF, math, mo, nn, torch, traceback):
             # 6. Final Convolution Layer
             print(f"--- UNet Init: Final Conv ({base_dim} -> {out_channels} channels) ---")
             self.final_conv = nn.Conv2d(base_dim, out_channels, kernel_size=1)
-            print(f"--- UNet Init: Complete ---")
+            print("--- UNet Init: Complete ---")
 
 
         def forward(self, x, time):
@@ -875,10 +875,7 @@ def _(mo, timesteps_slider, torch):
     betas = linear_beta_schedule(timesteps_slider_value)
     alphas = 1.0 - betas
     alphas_cumprod = torch.cumprod(alphas, axis=0)
-    alphas_cumprod_prev = torch.cat(
-        [torch.tensor([1.0]), alphas_cumprod[:-1]]
-    )  # F.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
-
+    alphas_cumprod_prev = torch.cat( [torch.tensor([1.0]), alphas_cumprod[:-1]] )  # F.pad(alphas_cumprod[:-1], (1, 0), value=1.0) <<< ⚠️ Unused variable !
 
     # Helper function to extract specific values for a batch of timesteps_slider t
     def extract(a, t, x_shape):
@@ -1080,7 +1077,7 @@ def setup_cell(
             mo.md(f"Using Device: `{device}`"),
             mo.md(f"Model instance created with {_model_param_count:,} parameters."),
             mo.md(f"Optimizer: AdamW, LR: {learning_rate_slider.value}"),
-            mo.md(f"Loss Function: MSELoss")
+            mo.md("Loss Function: MSELoss")
         ]
     )
     return device, loss_fn, model, optimizer
@@ -1202,8 +1199,8 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(alphas, alphas_cumprod, betas, extract, np, torch):
     # --- Diffusion Scheduler ---
-    # (Keep existing scheduler code: linear_beta_schedule, T, betas, alphas, etc.)
-    # T = timesteps.value # T is already defined in the original cell based on the slider
+    # (Keep existing scheduler code: linear_beta_schedule, timesteps, betas, alphas, etc.)
+    # timesteps = timesteps_slider.value # timesteps is already defined in the original cell based on the slider
     # ... keep betas, alphas, alphas_cumprod, alphas_cumprod_prev ...
     # ... keep extract function ...
     # ... keep q_sample function ...
